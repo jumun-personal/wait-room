@@ -1,0 +1,26 @@
+package com.jumunhasyeo.ratelimiter.queue.redis;
+
+public final class QueueRedisKeys {
+
+    private QueueRedisKeys() {
+    }
+
+    /** ZSET — 대기열 (score = epochMillis, member = userId) */
+    public static final String WAITING_QUEUE = "q:waitroom:waiting";
+
+    /** ZSET — 현재 주문서 진입 중인 사용자 (score = entryMillis, member = userId) */
+    public static final String ACTIVE_SET = "q:waitroom:active";
+
+    /** ZSET — 폴링 추적기 (score = lastPolledAtMillis, member = userId) */
+    public static final String POLL_TRACKER = "q:waitroom:poll-tracker";
+
+    /** HASH prefix — 대기 사용자 메타 (token, lastPolledAt). TTL 부여 */
+    private static final String META_PREFIX = "q:waitroom:meta:";
+
+    /** STRING — 스케줄러 분산 락 */
+    public static final String CLEANUP_LOCK = "q:waitroom:lock:cleanup";
+
+    public static String metaKey(String userId) {
+        return META_PREFIX + userId;
+    }
+}
