@@ -9,4 +9,6 @@ public interface QueueService {
     QueueEntryResponse enter(QueueEntryRequest request);
 
     QueuePollResponse poll(String userId, String token);
+
+    String handlePaymentCallback(String userId, String activeToken, String status);
 }

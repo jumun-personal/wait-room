@@ -14,13 +14,23 @@ public final class QueueRedisKeys {
     /** ZSET — 폴링 추적기 (score = lastPolledAtMillis, member = userId) */
     public static final String POLL_TRACKER = "q:waitroom:poll-tracker";
 
-    /** HASH prefix — 대기 사용자 메타 (token, lastPolledAt). TTL 부여 */
+    /** HASH prefix — 대기 사용자 메타 (token). TTL 부여 */
     private static final String META_PREFIX = "q:waitroom:meta:";
+
+    /** HASH prefix — 활성 사용자 메타 (userId, queueToken). TTL 부여 */
+    private static final String ACTIVE_META_PREFIX = "q:waitroom:active-meta:";
 
     /** STRING — 스케줄러 분산 락 */
     public static final String CLEANUP_LOCK = "q:waitroom:lock:cleanup";
 
+    /** STRING — 동적 설정 (max active tokens) */
+    public static final String MAX_ACTIVE_TOKENS = "q:waitroom:max-active-tokens";
+
     public static String metaKey(String userId) {
         return META_PREFIX + userId;
+    }
+
+    public static String activeMetaKey(String activeToken) {
+        return ACTIVE_META_PREFIX + activeToken;
     }
 }

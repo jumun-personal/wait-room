@@ -8,14 +8,15 @@ public record QueueEntryResponse(
         String activeToken,
         Integer rank,
         Integer estimatedWaitSeconds,
+        Integer pollIntervalSeconds,
         String queueToken
 ) {
 
     public static QueueEntryResponse allowed(String activeToken) {
-        return new QueueEntryResponse(true, activeToken, null, null, null);
+        return new QueueEntryResponse(true, activeToken, null, null, null, null);
     }
 
-    public static QueueEntryResponse queued(int rank, int estimatedWaitSeconds, String queueToken) {
-        return new QueueEntryResponse(false, null, rank, estimatedWaitSeconds, queueToken);
+    public static QueueEntryResponse queued(int rank, int estimatedWaitSeconds, int pollIntervalSeconds, String queueToken) {
+        return new QueueEntryResponse(false, null, rank, estimatedWaitSeconds, pollIntervalSeconds, queueToken);
     }
 }

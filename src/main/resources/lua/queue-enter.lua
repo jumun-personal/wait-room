@@ -7,6 +7,7 @@ local nowMillis   = ARGV[2]
 local maxTokens   = tonumber(ARGV[3])
 local queueToken  = ARGV[4]
 local metaTtl     = tonumber(ARGV[5])
+local activeMetaTtl = tonumber(ARGV[6])
 
 -- 이미 활성 상태인가? (ZSET: ZSCORE로 존재 확인)
 if redis.call('ZSCORE', activeKey, userId) ~= false then
@@ -23,12 +24,14 @@ end
 local activeCount = redis.call('ZCARD', activeKey)
 if activeCount < maxTokens then
     redis.call('ZADD', activeKey, nowMillis, userId)
+    redis.call('HSET', KEYS[5], 'userId', userId)
+    redis.call('EXPIRE', KEYS[5], activeMetaTtl)
     return 'ACTIVE:' .. queueToken
 end
 
 -- 대기열에 추가
 redis.call('ZADD', waitingKey, nowMillis, userId)
 redis.call('ZADD', pollTrackerKey, nowMillis, userId)
-redis.call('HSET', metaKey, 'token', queueToken, 'lastPolledAt', nowMillis)
+redis.call('HSET', metaKey, 'token', queueToken)
 redis.call('EXPIRE', metaKey, metaTtl)
 return tostring(redis.call('ZRANK', waitingKey, userId))

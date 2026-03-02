@@ -8,6 +8,7 @@ local maxTokens   = tonumber(ARGV[3])
 local expectedTok = ARGV[4]
 local metaTtl     = tonumber(ARGV[5])
 local activeToken = ARGV[6]
+local activeMetaTtl = tonumber(ARGV[7])
 
 -- 이미 활성 상태면 바로 허용 (ZSET: ZSCORE로 존재 확인)
 if redis.call('ZSCORE', activeKey, userId) ~= false then
@@ -20,8 +21,6 @@ if storedToken ~= expectedTok then
     return 'INVALID_TOKEN'
 end
 
--- lastPolledAt 갱신
-redis.call('HSET', metaKey, 'lastPolledAt', nowMillis)
 redis.call('EXPIRE', metaKey, metaTtl)
 redis.call('ZADD', pollTrackerKey, nowMillis, userId)
 
@@ -39,6 +38,8 @@ if rank < available then
     redis.call('ZREM', pollTrackerKey, userId)
     redis.call('DEL', metaKey)
     redis.call('ZADD', activeKey, nowMillis, userId)
+    redis.call('HSET', KEYS[5], 'userId', userId)
+    redis.call('EXPIRE', KEYS[5], activeMetaTtl)
     return 'ADMITTED:' .. activeToken
 end
 
