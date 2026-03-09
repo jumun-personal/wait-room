@@ -7,7 +7,6 @@ public record QueueProperties(
         int maxActiveTokens,
         int activeTtlSeconds,
         int stalePollSeconds,
-        int metaTtlSeconds,
         long cleanupIntervalMs,
         long cleanupLockTtlMs,
         int estimatedProcessingSeconds

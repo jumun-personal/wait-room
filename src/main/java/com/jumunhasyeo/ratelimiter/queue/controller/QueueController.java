@@ -29,10 +29,9 @@ public class QueueController {
 
     @GetMapping("/poll")
     public ResponseEntity<QueuePollResponse> poll(
-            @RequestParam String userId,
-            @RequestParam String token
+            @RequestParam String userId
     ) {
-        QueuePollResponse response = queueService.poll(userId, token);
+        QueuePollResponse response = queueService.poll(userId);
         return ResponseEntity.ok(response);
     }
 

@@ -2,7 +2,10 @@ package com.jumunhasyeo.ratelimiter.queue.repository;
 
 import com.jumunhasyeo.ratelimiter.queue.redis.QueueRedisKeys;
 import com.redis.testcontainers.RedisContainer;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -39,11 +42,6 @@ class WaitingQueueRedisRepositoryTest {
         redisTemplate.delete(QueueRedisKeys.WAITING_QUEUE);
         redisTemplate.delete(QueueRedisKeys.ACTIVE_SET);
         redisTemplate.delete(QueueRedisKeys.POLL_TRACKER);
-        // meta 키도 정리
-        var keys = redisTemplate.keys("q:waitroom:meta:*");
-        if (keys != null && !keys.isEmpty()) {
-            redisTemplate.delete(keys);
-        }
         var activeMetaKeys = redisTemplate.keys("q:waitroom:active-meta:*");
         if (activeMetaKeys != null && !activeMetaKeys.isEmpty()) {
             redisTemplate.delete(activeMetaKeys);
@@ -57,7 +55,7 @@ class WaitingQueueRedisRepositoryTest {
         @Test
         @DisplayName("토큰이_남아있으면_즉시_ACTIVE_상태가_된다")
         void 토큰이_남아있으면_즉시_ACTIVE_상태가_된다() {
-            String result = repository.enterOrQueue("user-1", "token-1", 10, 600, 600);
+            String result = repository.enterOrQueue("user-1", "active-1", 10, 600);
 
             assertThat(result).startsWith("ACTIVE:");
             assertThat(repository.activeCount()).isEqualTo(1);
@@ -66,32 +64,31 @@ class WaitingQueueRedisRepositoryTest {
         @Test
         @DisplayName("토큰이_모두_소진되면_대기열에_추가된다")
         void 토큰이_모두_소진되면_대기열에_추가된다() {
-            // 토큰 1개만 설정하고 1명 입장
-            repository.enterOrQueue("user-1", "token-1", 1, 600, 600);
+            repository.enterOrQueue("user-1", "active-1", 1, 600);
 
-            // 2번째 사용자는 대기열에 들어감
-            String result = repository.enterOrQueue("user-2", "token-2", 1, 600, 600);
+            String result = repository.enterOrQueue("user-2", "active-2", 1, 600);
 
-            assertThat(result).isEqualTo("0"); // 0-based rank
+            assertThat(result).isEqualTo("QUEUED:0"); // 0-based rank
             assertThat(repository.waitingQueueSize()).isEqualTo(1);
         }
 
         @Test
         @DisplayName("이미_대기열에_있는_사용자는_중복_등록되지_않는다")
         void 이미_대기열에_있는_사용자는_중복_등록되지_않는다() {
-            repository.enterOrQueue("user-1", "token-1", 1, 600, 600); // 입장
-            repository.enterOrQueue("user-2", "token-2", 1, 600, 600); // 대기열
-            String result = repository.enterOrQueue("user-2", "token-3", 1, 600, 600); // 중복 시도
+            repository.enterOrQueue("user-1", "active-1", 1, 600); // 입장
+            String first = repository.enterOrQueue("user-2", "active-2", 1, 600); // 대기열
+            String second = repository.enterOrQueue("user-2", "active-3", 1, 600); // 중복 시도
 
-            assertThat(result).isEqualTo("0");
+            assertThat(first).isEqualTo("QUEUED:0");
+            assertThat(second).isEqualTo("QUEUED:0");
             assertThat(repository.waitingQueueSize()).isEqualTo(1);
         }
 
         @Test
         @DisplayName("이미_활성_상태인_사용자는_ALREADY_ACTIVE를_반환한다")
         void 이미_활성_상태인_사용자는_ALREADY_ACTIVE를_반환한다() {
-            repository.enterOrQueue("user-1", "token-1", 10, 600, 600);
-            String result = repository.enterOrQueue("user-1", "token-2", 10, 600, 600);
+            repository.enterOrQueue("user-1", "active-1", 10, 600);
+            String result = repository.enterOrQueue("user-1", "active-2", 10, 600);
 
             assertThat(result).isEqualTo("ALREADY_ACTIVE");
             assertThat(repository.activeCount()).isEqualTo(1);
@@ -100,14 +97,14 @@ class WaitingQueueRedisRepositoryTest {
         @Test
         @DisplayName("FIFO_순서로_대기열_순위가_매겨진다")
         void FIFO_순서로_대기열_순위가_매겨진다() throws InterruptedException {
-            repository.enterOrQueue("active-user", "t-0", 1, 600, 600);
+            repository.enterOrQueue("active-user", "active-0", 1, 600);
 
-            String rank1 = repository.enterOrQueue("user-1", "t-1", 1, 600, 600);
+            String rank1 = repository.enterOrQueue("user-1", "active-1", 1, 600);
             Thread.sleep(10); // score 차이를 위해
-            String rank2 = repository.enterOrQueue("user-2", "t-2", 1, 600, 600);
+            String rank2 = repository.enterOrQueue("user-2", "active-2", 1, 600);
 
-            assertThat(rank1).isEqualTo("0");
-            assertThat(rank2).isEqualTo("1");
+            assertThat(rank1).isEqualTo("QUEUED:0");
+            assertThat(rank2).isEqualTo("QUEUED:1");
         }
     }
 
@@ -118,14 +115,12 @@ class WaitingQueueRedisRepositoryTest {
         @Test
         @DisplayName("순번이_도달하면_ADMITTED_상태가_된다")
         void 순번이_도달하면_ADMITTED_상태가_된다() {
-            // 토큰 2개, 1명 입장 → 1자리 남음
-            repository.enterOrQueue("user-1", "token-1", 2, 600, 600);
-            repository.enterOrQueue("user-2", "queue-token", 1, 600, 600); // 대기열 진입 (maxTokens=1)
+            repository.enterOrQueue("user-1", "active-1", 2, 600);
+            repository.enterOrQueue("user-2", "active-2", 1, 600); // 대기열 진입 (maxTokens=1)
 
-            // user-1 제거하여 자리 확보 (active 2칸 중 user-1만 있으니 user-2 입장 가능)
             redisTemplate.opsForZSet().remove(QueueRedisKeys.ACTIVE_SET, "user-1");
 
-            String result = repository.poll("user-2", "queue-token", "active-token", 1, 600, 600);
+            String result = repository.poll("user-2", "active-token", 1, 600);
             assertThat(result).startsWith("ADMITTED:");
             assertThat(repository.activeCount()).isEqualTo(1);
             assertThat(repository.waitingQueueSize()).isEqualTo(0);
@@ -134,30 +129,17 @@ class WaitingQueueRedisRepositoryTest {
         @Test
         @DisplayName("순번이_아직_아니면_현재_순위를_반환한다")
         void 순번이_아직_아니면_현재_순위를_반환한다() {
-            repository.enterOrQueue("active-user", "t-0", 1, 600, 600);
-            repository.enterOrQueue("user-1", "token-1", 1, 600, 600); // rank 0
+            repository.enterOrQueue("active-user", "active-0", 1, 600);
+            repository.enterOrQueue("user-1", "active-1", 1, 600); // rank 0
 
-            String result = repository.poll("user-1", "token-1", "at", 1, 600, 600);
+            String result = repository.poll("user-1", "active-token", 1, 600);
             assertThat(result).isEqualTo("0");
-        }
-
-        @Test
-        @DisplayName("잘못된_토큰이면_INVALID_TOKEN을_반환한다")
-        void 잘못된_토큰이면_INVALID_TOKEN을_반환한다() {
-            repository.enterOrQueue("active-user", "t-0", 1, 600, 600);
-            repository.enterOrQueue("user-1", "real-token", 1, 600, 600);
-
-            String result = repository.poll("user-1", "wrong-token", "at", 1, 600, 600);
-            assertThat(result).isEqualTo("INVALID_TOKEN");
         }
 
         @Test
         @DisplayName("대기열에_없는_사용자가_폴링하면_NOT_IN_QUEUE를_반환한다")
         void 대기열에_없는_사용자가_폴링하면_NOT_IN_QUEUE를_반환한다() {
-            // meta 키를 수동으로 설정하여 토큰 검증은 통과하지만 ZSET에는 없는 상태
-            redisTemplate.opsForHash().put(QueueRedisKeys.metaKey("ghost"), "token", "t-1");
-
-            String result = repository.poll("ghost", "t-1", "at", 10, 600, 600);
+            String result = repository.poll("ghost", "active-token", 10, 600);
             assertThat(result).isEqualTo("NOT_IN_QUEUE");
         }
     }
@@ -168,10 +150,9 @@ class WaitingQueueRedisRepositoryTest {
 
         @Test
         @DisplayName("만료된_활성_사용자가_제거된다")
-        void 만료된_활성_사용자가_제거된다() throws InterruptedException {
-            repository.enterOrQueue("user-1", "t-1", 10, 600, 600);
+        void 만료된_활성_사용자가_제거된다() {
+            repository.enterOrQueue("user-1", "active-1", 10, 600);
 
-            // 직접 active entry의 timestamp를 과거로 변경 (ZSET: ZADD로 score 업데이트)
             long pastMillis = System.currentTimeMillis() - 700_000; // 700초 전
             redisTemplate.opsForZSet().add(QueueRedisKeys.ACTIVE_SET, "user-1", pastMillis);
 
@@ -183,10 +164,9 @@ class WaitingQueueRedisRepositoryTest {
         @Test
         @DisplayName("stale_폴링_사용자가_대기열에서_제거된다")
         void stale_폴링_사용자가_대기열에서_제거된다() {
-            repository.enterOrQueue("active-user", "t-0", 1, 600, 600);
-            repository.enterOrQueue("user-1", "t-1", 1, 600, 600);
+            repository.enterOrQueue("active-user", "active-0", 1, 600);
+            repository.enterOrQueue("user-1", "active-1", 1, 600);
 
-            // poll-tracker의 score를 과거로 변경 (stale 판정 기준)
             long pastMillis = System.currentTimeMillis() - 40_000; // 40초 전
             redisTemplate.opsForZSet().add(QueueRedisKeys.POLL_TRACKER, "user-1", pastMillis);
 
@@ -204,7 +184,7 @@ class WaitingQueueRedisRepositoryTest {
         @DisplayName("성공_콜백이면_활성에서_제거된다")
         void 성공_콜백이면_활성에서_제거된다() {
             String token = "active-1";
-            repository.enterOrQueue("user-1", token, 10, 600, 600);
+            repository.enterOrQueue("user-1", token, 10, 600);
 
             String result = repository.handlePaymentCallback("user-1", token, "SUCCESS", 600);
 
@@ -217,7 +197,7 @@ class WaitingQueueRedisRepositoryTest {
         @DisplayName("실패_콜백이면_TTL이_갱신된다")
         void 실패_콜백이면_TTL이_갱신된다() {
             String token = "active-1";
-            repository.enterOrQueue("user-1", token, 10, 600, 600);
+            repository.enterOrQueue("user-1", token, 10, 600);
 
             String result = repository.handlePaymentCallback("user-1", token, "FAIL", 600);
 
@@ -232,7 +212,7 @@ class WaitingQueueRedisRepositoryTest {
         @DisplayName("userId가_일치하지_않으면_MISMATCH를_반환한다")
         void userId가_일치하지_않으면_MISMATCH를_반환한다() {
             String token = "active-1";
-            repository.enterOrQueue("user-1", token, 10, 600, 600);
+            repository.enterOrQueue("user-1", token, 10, 600);
 
             String result = repository.handlePaymentCallback("user-2", token, "SUCCESS", 600);
 

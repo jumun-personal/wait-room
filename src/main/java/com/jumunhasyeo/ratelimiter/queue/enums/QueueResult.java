@@ -4,8 +4,8 @@ public enum QueueResult {
 
     ALREADY_ACTIVE,
     ACTIVE,
+    QUEUED,
     ADMITTED,
-    INVALID_TOKEN,
     NOT_IN_QUEUE;
 
     private static final String SEPARATOR = ":";
@@ -32,11 +32,34 @@ public enum QueueResult {
         return idx >= 0 ? raw.substring(idx + 1) : null;
     }
 
+    public static QueuedPayload extractQueuedPayload(String raw) {
+        String payload = extractPayload(raw);
+        if (payload == null) {
+            throw new IllegalArgumentException("QUEUED payload가 없습니다.");
+        }
+
+        int rank;
+        try {
+            rank = Integer.parseInt(payload);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("QUEUED rank 형식이 올바르지 않습니다.", e);
+        }
+
+        if (rank < 0) {
+            throw new IllegalArgumentException("QUEUED rank는 0 이상이어야 합니다.");
+        }
+
+        return new QueuedPayload(rank);
+    }
+
     public static boolean isRank(String raw) {
-        return from(raw) == null;
+        return raw != null && !raw.isBlank() && raw.chars().allMatch(Character::isDigit);
     }
 
     public boolean matches(String raw) {
         return this == from(raw);
+    }
+
+    public record QueuedPayload(int rank) {
     }
 }

@@ -8,11 +8,13 @@ import com.jumunhasyeo.ratelimiter.queue.dto.QueuePollResponse;
 import com.jumunhasyeo.ratelimiter.queue.enums.QueueResult;
 import com.jumunhasyeo.ratelimiter.queue.repository.WaitingQueueRedisRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class QueueServiceImpl implements QueueService {
 
@@ -22,13 +24,12 @@ public class QueueServiceImpl implements QueueService {
 
     @Override
     public QueueEntryResponse enter(QueueEntryRequest request) {
-        String queueToken = UUID.randomUUID().toString();
+        String activeToken = UUID.randomUUID().toString();
         int maxActiveTokens = runtimeConfig.maxActiveTokens();
         String result = repository.enterOrQueue(
                 request.userId(),
-                queueToken,
+                activeToken,
                 maxActiveTokens,
-                properties.metaTtlSeconds(),
                 properties.activeTtlSeconds()
         );
 
@@ -41,22 +42,31 @@ public class QueueServiceImpl implements QueueService {
             return QueueEntryResponse.allowed(QueueResult.extractPayload(result));
         }
 
-        int rank = Integer.parseInt(result) + 1; // 0-based → 1-based
+        int rank;
+        if (status == QueueResult.QUEUED) {
+            QueueResult.QueuedPayload queuedPayload = QueueResult.extractQueuedPayload(result);
+            rank = queuedPayload.rank() + 1; // 0-based → 1-based
+        } else if (QueueResult.isRank(result)) {
+            // Backward compatibility: old Lua may still return rank-only response.
+            log.warn("Legacy queue-enter result format received. result={}", result);
+            rank = Integer.parseInt(result) + 1; // 0-based → 1-based
+        } else {
+            throw new IllegalStateException("예상하지 못한 queue enter 결과입니다: " + result);
+        }
+
         int estimatedWait = estimateWaitSeconds(rank, maxActiveTokens);
         int pollIntervalSeconds = calculatePollIntervalSeconds(estimatedWait);
-        return QueueEntryResponse.queued(rank, estimatedWait, pollIntervalSeconds, queueToken);
+        return QueueEntryResponse.queued(rank, estimatedWait, pollIntervalSeconds);
     }
 
     @Override
-    public QueuePollResponse poll(String userId, String token) {
+    public QueuePollResponse poll(String userId) {
         String activeToken = UUID.randomUUID().toString();
         int maxActiveTokens = runtimeConfig.maxActiveTokens();
         String result = repository.poll(
                 userId,
-                token,
                 activeToken,
                 maxActiveTokens,
-                properties.metaTtlSeconds(),
                 properties.activeTtlSeconds()
         );
 
@@ -64,9 +74,6 @@ public class QueueServiceImpl implements QueueService {
 
         if (status == QueueResult.ALREADY_ACTIVE) {
             return QueuePollResponse.admitted(null);
-        }
-        if (status == QueueResult.INVALID_TOKEN) {
-            throw new IllegalArgumentException("유효하지 않은 대기열 토큰입니다.");
         }
         if (status == QueueResult.NOT_IN_QUEUE) {
             throw new IllegalStateException("대기열에 존재하지 않는 사용자입니다.");

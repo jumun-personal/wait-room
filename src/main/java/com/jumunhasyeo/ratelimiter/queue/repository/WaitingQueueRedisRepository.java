@@ -36,19 +36,19 @@ public class WaitingQueueRedisRepository {
     /**
      * 대기열 진입 또는 즉시 입장 시도.
      *
-     * @return "ALREADY_ACTIVE" | "ACTIVE:{token}" | "{rank}"
+     * @return "ALREADY_ACTIVE" | "ACTIVE:{token}" | "QUEUED:{rank}"
      */
-    public String enterOrQueue(String userId, String queueToken, int maxTokens, int metaTtlSeconds, int activeTtlSeconds) {
+    public String enterOrQueue(String userId, String activeToken, int maxTokens, int activeTtlSeconds) {
         long startNanos = System.nanoTime();
         long now = clock.millis();
         try {
             String result = redisTemplate.execute(
                     ENTER_SCRIPT,
                     List.of(QueueRedisKeys.ACTIVE_SET, QueueRedisKeys.WAITING_QUEUE,
-                            QueueRedisKeys.metaKey(userId), QueueRedisKeys.POLL_TRACKER,
-                            QueueRedisKeys.activeMetaKey(queueToken)),
-                    userId, String.valueOf(now), String.valueOf(maxTokens), queueToken,
-                    String.valueOf(metaTtlSeconds), String.valueOf(activeTtlSeconds)
+                            QueueRedisKeys.POLL_TRACKER,
+                            QueueRedisKeys.activeMetaKey(activeToken)),
+                    userId, String.valueOf(now), String.valueOf(maxTokens),
+                    activeToken, String.valueOf(activeTtlSeconds)
             );
             queueMetrics.recordRedisCommand("enter", classifyResult(result), Duration.ofNanos(System.nanoTime() - startNanos));
             return result;
@@ -61,19 +61,19 @@ public class WaitingQueueRedisRepository {
     /**
      * 대기열 폴링.
      *
-     * @return "ALREADY_ACTIVE" | "INVALID_TOKEN" | "NOT_IN_QUEUE" | "ADMITTED:{token}" | "{rank}"
+     * @return "ALREADY_ACTIVE" | "NOT_IN_QUEUE" | "ADMITTED:{token}" | "{rank}"
      */
-    public String poll(String userId, String expectedToken, String activeToken, int maxTokens, int metaTtlSeconds, int activeTtlSeconds) {
+    public String poll(String userId, String activeToken, int maxTokens, int activeTtlSeconds) {
         long startNanos = System.nanoTime();
         long now = clock.millis();
         try {
             String result = redisTemplate.execute(
                     POLL_SCRIPT,
                     List.of(QueueRedisKeys.ACTIVE_SET, QueueRedisKeys.WAITING_QUEUE,
-                            QueueRedisKeys.metaKey(userId), QueueRedisKeys.POLL_TRACKER,
+                            QueueRedisKeys.POLL_TRACKER,
                             QueueRedisKeys.activeMetaKey(activeToken)),
-                    userId, String.valueOf(now), String.valueOf(maxTokens), expectedToken,
-                    String.valueOf(metaTtlSeconds), activeToken, String.valueOf(activeTtlSeconds)
+                    userId, String.valueOf(now), String.valueOf(maxTokens),
+                    activeToken, String.valueOf(activeTtlSeconds)
             );
             queueMetrics.recordRedisCommand("poll", classifyResult(result), Duration.ofNanos(System.nanoTime() - startNanos));
             return result;
@@ -96,7 +96,7 @@ public class WaitingQueueRedisRepository {
             Long removed = redisTemplate.execute(
                     CLEANUP_STALE_SCRIPT,
                     List.of(QueueRedisKeys.WAITING_QUEUE, QueueRedisKeys.POLL_TRACKER),
-                    "q:waitroom:meta:", String.valueOf(now), String.valueOf(thresholdMillis), String.valueOf(batchSize)
+                    String.valueOf(now), String.valueOf(thresholdMillis), String.valueOf(batchSize)
             );
             long result = removed != null ? removed : 0;
             queueMetrics.recordRedisCommand("cleanup_stale", String.valueOf(result), Duration.ofNanos(System.nanoTime() - startNanos));
