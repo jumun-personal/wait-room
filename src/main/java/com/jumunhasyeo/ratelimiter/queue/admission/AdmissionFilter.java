@@ -34,7 +34,12 @@ public class AdmissionFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
 
-        if (!isQueueApi(request.getRequestURI()) || !properties.enabled()) {
+        AdmissionPathPolicy policy = resolvePolicy(request);
+        if (policy == AdmissionPathPolicy.PASSTHROUGH || !properties.enabled()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+        if (policy == AdmissionPathPolicy.BYPASS) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -75,7 +80,28 @@ public class AdmissionFilter extends OncePerRequestFilter {
         log.debug("Admission rejected request. reason={}", reason);
     }
 
-    private boolean isQueueApi(String uri) {
-        return uri != null && uri.startsWith("/api/queue");
+    private AdmissionPathPolicy resolvePolicy(HttpServletRequest request) {
+        String uri = request.getRequestURI();
+        if (uri == null || !uri.startsWith("/api/queue")) {
+            return AdmissionPathPolicy.PASSTHROUGH;
+        }
+
+        String method = request.getMethod();
+        if ("POST".equalsIgnoreCase(method) && "/api/queue/payment/callback".equals(uri)) {
+            return AdmissionPathPolicy.BYPASS;
+        }
+        if ("POST".equalsIgnoreCase(method) && "/api/queue/enter".equals(uri)) {
+            return AdmissionPathPolicy.GUARDED;
+        }
+        if ("GET".equalsIgnoreCase(method) && "/api/queue/poll".equals(uri)) {
+            return AdmissionPathPolicy.GUARDED;
+        }
+        return AdmissionPathPolicy.GUARDED;
+    }
+
+    private enum AdmissionPathPolicy {
+        PASSTHROUGH,
+        BYPASS,
+        GUARDED
     }
 }
