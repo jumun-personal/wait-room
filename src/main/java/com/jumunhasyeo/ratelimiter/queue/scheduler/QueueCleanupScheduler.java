@@ -18,6 +18,7 @@ import java.time.Duration;
 public class QueueCleanupScheduler {
 
     private static final int CLEANUP_BATCH_SIZE = 100;
+    private static final int STALE_THRESHOLD_MULTIPLIER = 3;
 
     private final WaitingQueueRedisRepository repository;
     private final QueueProperties properties;
@@ -35,7 +36,8 @@ public class QueueCleanupScheduler {
     }
 
     private void cleanupStalePolling() {
-        long removed = repository.cleanupStale(properties.stalePollSeconds(), CLEANUP_BATCH_SIZE);
+        int stalePollSeconds = properties.maxPollIntervalSeconds() * STALE_THRESHOLD_MULTIPLIER;
+        long removed = repository.cleanupStale(stalePollSeconds, CLEANUP_BATCH_SIZE);
         if (removed > 0) {
             log.info("대기열에서 stale 사용자 {}명 제거", removed);
         }

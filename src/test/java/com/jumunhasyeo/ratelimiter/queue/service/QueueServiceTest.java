@@ -122,6 +122,22 @@ class QueueServiceTest {
         }
 
         @Test
+        @DisplayName("장기_대기_구간은_최대_폴링_간격_설정값을_사용한다")
+        void 장기_대기_구간은_최대_폴링_간격_설정값을_사용한다() {
+            given(runtimeConfig.maxActiveTokens()).willReturn(100);
+            given(properties.estimatedProcessingSeconds()).willReturn(3);
+            given(properties.maxPollIntervalSeconds()).willReturn(30);
+            given(repository.enterOrQueue(eq("user-1"), anyString(), eq(100), eq(600)))
+                    .willReturn(QueueResult.QUEUED.withPayload("19999")); // rank 20000 -> wait 600s
+
+            QueueEntryResponse response = queueService.enter(new QueueEntryRequest("user-1"));
+
+            assertThat(response.allowed()).isFalse();
+            assertThat(response.estimatedWaitSeconds()).isEqualTo(600);
+            assertThat(response.pollIntervalSeconds()).isEqualTo(30);
+        }
+
+        @Test
         @DisplayName("구버전_rank_응답도_하위호환으로_처리한다")
         void 구버전_rank_응답도_하위호환으로_처리한다() {
             given(runtimeConfig.maxActiveTokens()).willReturn(100);

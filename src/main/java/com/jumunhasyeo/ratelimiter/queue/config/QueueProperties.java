@@ -6,9 +6,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record QueueProperties(
         int maxActiveTokens,
         int activeTtlSeconds,
-        int stalePollSeconds,
         long cleanupIntervalMs,
         long cleanupLockTtlMs,
-        int estimatedProcessingSeconds
+        int estimatedProcessingSeconds,
+        int maxPollIntervalSeconds
 ) {
 }

@@ -1,0 +1,64 @@
+server:
+  port: 8090
+  tomcat:
+    max-connections: 20000
+    accept-count: 10000
+    threads:
+      max: 300000
+
+spring:
+  application:
+    name: ratelimiter-service
+  threads:
+    virtual:
+      enabled: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      lettuce:
+        pool:
+          max-active: 50
+          max-idle: 20
+          min-idle: 5
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+        queue.redis.command.duration: true
+        queue.vt.request.duration: true
+        jvm.gc.pause: true
+        queue.transport.request.duration: true
+
+queue:
+  max-active-tokens: 1000
+  active-ttl-seconds: 600
+  cleanup-interval-ms: 5000
+  cleanup-lock-ttl-ms: 3000
+  estimated-processing-seconds: 3
+  max-poll-interval-seconds: 30
+  metrics-interval-ms: 1000
+
+admission:
+  enabled: true
+  max-inflight: 100000 #2500
+  max-waiting-queue: 2000000 #20000
+  acquire-timeout-ms: 5
+  retry-after-seconds: 1
+
+diagnostics:
+  pinning:
+    enabled: false
+    simulated-block-ms: 200

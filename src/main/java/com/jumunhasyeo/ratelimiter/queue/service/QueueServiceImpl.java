@@ -97,7 +97,7 @@ public class QueueServiceImpl implements QueueService {
 
     private int calculatePollIntervalSeconds(int estimatedWaitSeconds) {
         if (estimatedWaitSeconds >= 600) { // 10분 이상
-            return 30;
+            return properties.maxPollIntervalSeconds();
         }
         if (estimatedWaitSeconds >= 300) { // 5분 이상
             return 20;
