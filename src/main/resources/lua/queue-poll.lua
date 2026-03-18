@@ -27,7 +27,6 @@ if rank < available then
     redis.call('ZREM', waitingKey, userId)
     redis.call('ZREM', pollTrackerKey, userId)
     redis.call('ZADD', activeKey, nowMillis, userId)
-    redis.call('HSET', KEYS[4], 'userId', userId)
     redis.call('EXPIRE', KEYS[4], activeMetaTtl)
     return 'ADMITTED:' .. activeToken
 end

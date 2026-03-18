@@ -22,7 +22,6 @@ end
 local activeCount = redis.call('ZCARD', activeKey)
 if activeCount < maxTokens then
     redis.call('ZADD', activeKey, nowMillis, userId)
-    redis.call('HSET', KEYS[4], 'userId', userId)
     redis.call('EXPIRE', KEYS[4], activeMetaTtl)
     return 'ACTIVE:' .. activeToken
 end

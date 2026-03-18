@@ -84,7 +84,7 @@ public class WaitingQueueRedisRepository {
     }
 
     /**
-     * Stale 폴링 사용자 정리.
+     * 대기열 Stale 폴링 사용자 정리.
      *
      * @return 제거된 사용자 수
      */
@@ -108,7 +108,7 @@ public class WaitingQueueRedisRepository {
     }
 
     /**
-     * 만료된 active 사용자 정리.
+     * 입장열 만료된 active 사용자 정리.
      *
      * @return 제거된 사용자 수
      */
