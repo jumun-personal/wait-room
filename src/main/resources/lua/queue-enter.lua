@@ -1,33 +1,45 @@
-local activeKey   = KEYS[1]
-local waitingKey  = KEYS[2]
+local activeKey = KEYS[1]
+local waitingKey = KEYS[2]
 local pollTrackerKey = KEYS[3]
-local userId      = ARGV[1]
-local nowMillis   = ARGV[2]
-local maxTokens   = tonumber(ARGV[3])
+local activeTokenKey = KEYS[4]
+local userId = ARGV[1]
+local nowMillis = tonumber(ARGV[2])
+local maxTokens = tonumber(ARGV[3])
 local activeToken = ARGV[4]
-local activeMetaTtl = tonumber(ARGV[5])
+local activeTtlSeconds = tonumber(ARGV[5])
 
--- 이미 활성 상태인가? (ZSET: ZSCORE로 존재 확인)
+local ttlMillis = activeTtlSeconds * 1000
+local expireAt = nowMillis + ttlMillis
+
+-- 만료된 active 정리
+redis.call('ZREMRANGEBYSCORE', activeKey, '-inf', nowMillis)
+
+-- 이미 active 상태인지 확인
+local existingToken = redis.call('GET', activeTokenKey)
 if redis.call('ZSCORE', activeKey, userId) ~= false then
+    if existingToken then
+        return 'ALREADY_ACTIVE:' .. existingToken
+    end
     return 'ALREADY_ACTIVE'
 end
 
--- 이미 대기열에 있는가?
+-- 이미 대기열에 있는지 확인
 local existingRank = redis.call('ZRANK', waitingKey, userId)
 if existingRank ~= false then
     return 'QUEUED:' .. tostring(existingRank)
 end
 
--- 토큰 여유가 있는가? (ZSET: ZCARD로 카운트)
+-- active 슬롯 여유 확인
 local activeCount = redis.call('ZCARD', activeKey)
 if activeCount < maxTokens then
-    redis.call('ZADD', activeKey, nowMillis, userId)
-    redis.call('EXPIRE', KEYS[4], activeMetaTtl)
+    redis.call('ZADD', activeKey, expireAt, userId)
+    redis.call('SET', activeTokenKey, activeToken, 'EX', activeTtlSeconds)
     return 'ACTIVE:' .. activeToken
 end
 
--- 대기열에 추가
+-- 대기열 등록
 redis.call('ZADD', waitingKey, nowMillis, userId)
 redis.call('ZADD', pollTrackerKey, nowMillis, userId)
+
 local rank = redis.call('ZRANK', waitingKey, userId)
 return 'QUEUED:' .. tostring(rank)

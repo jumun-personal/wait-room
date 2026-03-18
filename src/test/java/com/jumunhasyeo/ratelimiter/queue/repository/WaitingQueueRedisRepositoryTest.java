@@ -156,7 +156,7 @@ class WaitingQueueRedisRepositoryTest {
             long pastMillis = System.currentTimeMillis() - 700_000; // 700초 전
             redisTemplate.opsForZSet().add(QueueRedisKeys.ACTIVE_SET, "user-1", pastMillis);
 
-            long removed = repository.cleanupExpiredActive(600);
+            long removed = repository.cleanupExpiredActive();
             assertThat(removed).isEqualTo(1);
             assertThat(repository.activeCount()).isEqualTo(0);
         }
@@ -190,7 +190,7 @@ class WaitingQueueRedisRepositoryTest {
 
             assertThat(result).isEqualTo("REMOVED");
             assertThat(repository.activeCount()).isEqualTo(0);
-            assertThat(redisTemplate.hasKey(QueueRedisKeys.activeMetaKey(token))).isFalse();
+            assertThat(redisTemplate.hasKey(QueueRedisKeys.activeTokenKey(token))).isFalse();
         }
 
         @Test
@@ -203,7 +203,7 @@ class WaitingQueueRedisRepositoryTest {
 
             assertThat(result).isEqualTo("REFRESHED");
             assertThat(repository.activeCount()).isEqualTo(1);
-            Long ttl = redisTemplate.getExpire(QueueRedisKeys.activeMetaKey(token));
+            Long ttl = redisTemplate.getExpire(QueueRedisKeys.activeTokenKey(token));
             assertThat(ttl).isNotNull();
             assertThat(ttl).isGreaterThan(0);
         }

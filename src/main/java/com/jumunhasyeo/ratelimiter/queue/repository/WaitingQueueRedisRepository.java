@@ -44,9 +44,12 @@ public class WaitingQueueRedisRepository {
         try {
             String result = redisTemplate.execute(
                     ENTER_SCRIPT,
-                    List.of(QueueRedisKeys.ACTIVE_SET, QueueRedisKeys.WAITING_QUEUE,
+                    List.of(
+                            QueueRedisKeys.ACTIVE_SET,
+                            QueueRedisKeys.WAITING_QUEUE,
                             QueueRedisKeys.POLL_TRACKER,
-                            QueueRedisKeys.activeMetaKey(activeToken)),
+                            QueueRedisKeys.activeTokenKey(userId)
+                    ),
                     userId, String.valueOf(now), String.valueOf(maxTokens),
                     activeToken, String.valueOf(activeTtlSeconds)
             );
@@ -71,7 +74,7 @@ public class WaitingQueueRedisRepository {
                     POLL_SCRIPT,
                     List.of(QueueRedisKeys.ACTIVE_SET, QueueRedisKeys.WAITING_QUEUE,
                             QueueRedisKeys.POLL_TRACKER,
-                            QueueRedisKeys.activeMetaKey(activeToken)),
+                            QueueRedisKeys.activeTokenKey(userId)),
                     userId, String.valueOf(now), String.valueOf(maxTokens),
                     activeToken, String.valueOf(activeTtlSeconds)
             );
@@ -112,18 +115,18 @@ public class WaitingQueueRedisRepository {
      *
      * @return 제거된 사용자 수
      */
-    public long cleanupExpiredActive(int activeTtlSeconds) {
+    public long cleanupExpiredActive() {
         long startNanos = System.nanoTime();
         long now = clock.millis();
-        long ttlMillis = activeTtlSeconds * 1000L;
         try {
             Long removed = redisTemplate.execute(
                     CLEANUP_ACTIVE_SCRIPT,
                     List.of(QueueRedisKeys.ACTIVE_SET),
-                    String.valueOf(now), String.valueOf(ttlMillis)
+                    String.valueOf(now)
             );
             long result = removed != null ? removed : 0;
-            queueMetrics.recordRedisCommand("cleanup_active", String.valueOf(result), Duration.ofNanos(System.nanoTime() - startNanos));
+            queueMetrics.recordRedisCommand("cleanup_active", String.valueOf(result),
+                    Duration.ofNanos(System.nanoTime() - startNanos));
             return result;
         } catch (RuntimeException e) {
             queueMetrics.recordRedisCommandError("cleanup_active", e.getClass().getSimpleName());
@@ -158,8 +161,8 @@ public class WaitingQueueRedisRepository {
         try {
             String result = redisTemplate.execute(
                     ACTIVE_CALLBACK_SCRIPT,
-                    List.of(QueueRedisKeys.ACTIVE_SET, QueueRedisKeys.activeMetaKey(activeToken)),
-                    userId, String.valueOf(now), String.valueOf(activeTtlSeconds), action
+                    List.of(QueueRedisKeys.ACTIVE_SET, QueueRedisKeys.activeTokenKey(userId)),
+                    userId, activeToken, String.valueOf(now), String.valueOf(activeTtlSeconds), action
             );
             queueMetrics.recordRedisCommand("active_callback", classifyResult(result),
                     Duration.ofNanos(System.nanoTime() - startNanos));

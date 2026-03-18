@@ -44,7 +44,7 @@ public class QueueCleanupScheduler {
     }
 
     private void cleanupExpiredActive() {
-        long removed = repository.cleanupExpiredActive(properties.activeTtlSeconds());
+        long removed = repository.cleanupExpiredActive();
         if (removed > 0) {
             log.info("활성 세트에서 만료된 사용자 {}명 제거", removed);
         }

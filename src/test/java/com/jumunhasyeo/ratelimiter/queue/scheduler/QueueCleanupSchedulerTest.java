@@ -41,11 +41,11 @@ class QueueCleanupSchedulerTest {
         given(properties.maxPollIntervalSeconds()).willReturn(30);
         given(repository.cleanupStale(90, 100)).willReturn(0L);
         given(properties.activeTtlSeconds()).willReturn(600);
-        given(repository.cleanupExpiredActive(600)).willReturn(0L);
+        given(repository.cleanupExpiredActive()).willReturn(0L);
 
         scheduler.cleanup();
 
         verify(repository).cleanupStale(90, 100);
-        verify(repository).cleanupExpiredActive(600);
+        verify(repository).cleanupExpiredActive();
     }
 }

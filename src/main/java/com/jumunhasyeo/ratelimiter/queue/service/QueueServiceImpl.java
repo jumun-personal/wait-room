@@ -35,10 +35,7 @@ public class QueueServiceImpl implements QueueService {
 
         QueueResult status = QueueResult.from(result);
 
-        if (status == QueueResult.ALREADY_ACTIVE) {
-            return QueueEntryResponse.allowed(null);
-        }
-        if (status == QueueResult.ACTIVE) {
+        if (status == QueueResult.ACTIVE || status == QueueResult.ALREADY_ACTIVE) {
             return QueueEntryResponse.allowed(QueueResult.extractPayload(result));
         }
 
@@ -73,8 +70,9 @@ public class QueueServiceImpl implements QueueService {
         QueueResult status = QueueResult.from(result);
 
         if (status == QueueResult.ALREADY_ACTIVE) {
-            return QueuePollResponse.admitted(null);
+            return QueuePollResponse.admitted(QueueResult.extractPayload(result));
         }
+
         if (status == QueueResult.NOT_IN_QUEUE) {
             throw new IllegalStateException("대기열에 존재하지 않는 사용자입니다.");
         }

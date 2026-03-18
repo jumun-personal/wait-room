@@ -1,9 +1,7 @@
 local zkey = KEYS[1]
-local now  = tonumber(ARGV[1])
-local ttl  = tonumber(ARGV[2])
-local threshold = now - ttl
+local nowMillis = tonumber(ARGV[1])
 
-local members = redis.call('ZRANGEBYSCORE', zkey, '-inf', threshold)
+local members = redis.call('ZRANGEBYSCORE', zkey, '-inf', nowMillis)
 if #members == 0 then
   return 0
 end
