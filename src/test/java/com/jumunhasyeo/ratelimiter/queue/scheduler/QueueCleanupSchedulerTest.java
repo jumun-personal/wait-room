@@ -40,7 +40,6 @@ class QueueCleanupSchedulerTest {
         given(schedulerLock.tryLock(eq(QueueRedisKeys.CLEANUP_LOCK), any(Duration.class))).willReturn(true);
         given(properties.maxPollIntervalSeconds()).willReturn(30);
         given(repository.cleanupStale(90, 100)).willReturn(0L);
-        given(properties.activeTtlSeconds()).willReturn(600);
         given(repository.cleanupExpiredActive()).willReturn(0L);
 
         scheduler.cleanup();

@@ -90,7 +90,7 @@ class WaitingQueueRedisRepositoryTest {
             repository.enterOrQueue("user-1", "active-1", 10, 600);
             String result = repository.enterOrQueue("user-1", "active-2", 10, 600);
 
-            assertThat(result).isEqualTo("ALREADY_ACTIVE");
+            assertThat(result).isEqualTo("ALREADY_ACTIVE:active-1");
             assertThat(repository.activeCount()).isEqualTo(1);
         }
 
@@ -203,20 +203,20 @@ class WaitingQueueRedisRepositoryTest {
 
             assertThat(result).isEqualTo("REFRESHED");
             assertThat(repository.activeCount()).isEqualTo(1);
-            Long ttl = redisTemplate.getExpire(QueueRedisKeys.activeTokenKey(token));
+            Long ttl = redisTemplate.getExpire(QueueRedisKeys.activeTokenKey("user-1"));
             assertThat(ttl).isNotNull();
             assertThat(ttl).isGreaterThan(0);
         }
 
         @Test
-        @DisplayName("userId가_일치하지_않으면_MISMATCH를_반환한다")
+        @DisplayName("userId가_일치하지_않으면_NOT_FOUND를_반환한다")
         void userId가_일치하지_않으면_MISMATCH를_반환한다() {
             String token = "active-1";
             repository.enterOrQueue("user-1", token, 10, 600);
 
             String result = repository.handlePaymentCallback("user-2", token, "SUCCESS", 600);
 
-            assertThat(result).isEqualTo("MISMATCH");
+            assertThat(result).isEqualTo("NOT_FOUND");
             assertThat(repository.activeCount()).isEqualTo(1);
         }
     }
