@@ -17,4 +17,22 @@ public record ApiErrorResponse(
     public static ApiErrorResponse tooManyRequests(String message, String reason, int retryAfterSeconds) {
         return new ApiErrorResponse("TOO_MANY_REQUESTS", message, reason, retryAfterSeconds);
     }
+
+    public static ApiErrorResponse queueTemporarilyUnavailable(int retryAfterSeconds) {
+        return new ApiErrorResponse(
+                "QUEUE_TEMPORARILY_UNAVAILABLE",
+                "Queue is temporarily unavailable",
+                "redis_transient",
+                retryAfterSeconds
+        );
+    }
+
+    public static ApiErrorResponse queueBypass() {
+        return new ApiErrorResponse(
+                "QUEUE_BYPASS",
+                "Queue temporarily bypassed",
+                "request_circuit_open",
+                null
+        );
+    }
 }

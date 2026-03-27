@@ -7,15 +7,14 @@ public record QueueEntryResponse(
         boolean allowed,
         String activeToken,
         Integer rank,
-        Integer estimatedWaitSeconds,
         Integer pollIntervalSeconds
 ) {
 
     public static QueueEntryResponse allowed(String activeToken) {
-        return new QueueEntryResponse(true, activeToken, null, null, null);
+        return new QueueEntryResponse(true, activeToken, null, null);
     }
 
-    public static QueueEntryResponse queued(int rank, int estimatedWaitSeconds, int pollIntervalSeconds) {
-        return new QueueEntryResponse(false, null, rank, estimatedWaitSeconds, pollIntervalSeconds);
+    public static QueueEntryResponse queued(int rank, int pollIntervalSeconds) {
+        return new QueueEntryResponse(false, null, rank, pollIntervalSeconds);
     }
 }

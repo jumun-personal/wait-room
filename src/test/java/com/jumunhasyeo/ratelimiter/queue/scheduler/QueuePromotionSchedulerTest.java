@@ -1,6 +1,7 @@
 package com.jumunhasyeo.ratelimiter.queue.scheduler;
 
 import com.jumunhasyeo.ratelimiter.queue.config.QueueProperties;
+import com.jumunhasyeo.ratelimiter.queue.config.QueueRuntimeConfig;
 import com.jumunhasyeo.ratelimiter.queue.redis.QueueRedisKeys;
 import com.jumunhasyeo.ratelimiter.queue.repository.WaitingQueueRedisRepository;
 import com.jumunhasyeo.ratelimiter.queue.resilience.QueueResilienceExecutor;
@@ -20,8 +21,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("QueueCleanupScheduler 단위 테스트")
-class QueueCleanupSchedulerTest {
+@DisplayName("QueuePromotionScheduler 단위 테스트")
+class QueuePromotionSchedulerTest {
 
     @Mock
     WaitingQueueRedisRepository repository;
@@ -30,13 +31,16 @@ class QueueCleanupSchedulerTest {
     QueueProperties properties;
 
     @Mock
+    QueueRuntimeConfig runtimeConfig;
+
+    @Mock
     RedisSchedulerLock schedulerLock;
 
     @Mock
     QueueResilienceExecutor resilienceExecutor;
 
     @InjectMocks
-    QueueCleanupScheduler scheduler;
+    QueuePromotionScheduler scheduler;
 
     @BeforeEach
     void setUp() {
@@ -44,17 +48,17 @@ class QueueCleanupSchedulerTest {
     }
 
     @Test
-    @DisplayName("cleanup은_최대_poll_간격의_3배를_stale_기준으로_사용한다")
-    void cleanup은_최대_poll_간격의_3배를_stale_기준으로_사용한다() {
+    @DisplayName("promotion은_PROMOTION_LOCK과_가용_슬롯_승격_설정을_사용한다")
+    void promotion은_PROMOTION_LOCK과_가용_슬롯_승격_설정을_사용한다() {
         given(properties.cleanupLockTtlMs()).willReturn(3000L);
-        given(schedulerLock.tryLock(eq(QueueRedisKeys.CLEANUP_LOCK), any(Duration.class))).willReturn(true);
         given(properties.maxPollIntervalSeconds()).willReturn(30);
-        given(repository.cleanupStale(90, 100)).willReturn(0L);
-        given(repository.cleanupExpiredActive()).willReturn(0L);
+        given(properties.activeTtlSeconds()).willReturn(600);
+        given(runtimeConfig.maxActiveTokens()).willReturn(100);
+        given(schedulerLock.tryLock(eq(QueueRedisKeys.PROMOTION_LOCK), any(Duration.class))).willReturn(true);
+        given(repository.promoteWaitingUsers(100, 600, 90, 100)).willReturn(3L);
 
-        scheduler.cleanup();
+        scheduler.promote();
 
-        verify(repository).cleanupStale(90, 100);
-        verify(repository).cleanupExpiredActive();
+        verify(repository).promoteWaitingUsers(100, 600, 90, 100);
     }
 }

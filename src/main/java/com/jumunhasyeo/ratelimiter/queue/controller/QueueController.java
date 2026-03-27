@@ -5,7 +5,9 @@ import com.jumunhasyeo.ratelimiter.queue.dto.QueueEntryResponse;
 import com.jumunhasyeo.ratelimiter.queue.dto.QueuePaymentCallbackRequest;
 import com.jumunhasyeo.ratelimiter.queue.dto.QueuePaymentCallbackResponse;
 import com.jumunhasyeo.ratelimiter.queue.dto.QueuePollResponse;
+import com.jumunhasyeo.ratelimiter.queue.http.QueueHttpHeaders;
 import com.jumunhasyeo.ratelimiter.queue.service.QueueService;
+import com.jumunhasyeo.ratelimiter.queue.service.QueuePollResult;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -29,10 +31,15 @@ public class QueueController {
 
     @GetMapping("/poll")
     public ResponseEntity<QueuePollResponse> poll(
-            @RequestParam String userId
+            @RequestParam String userId,
+            @RequestParam(required = false) Integer lastKnownRank
     ) {
-        QueuePollResponse response = queueService.poll(userId);
-        return ResponseEntity.ok(response);
+        QueuePollResult result = queueService.poll(userId, lastKnownRank);
+        ResponseEntity.BodyBuilder builder = ResponseEntity.ok();
+        if (result.stale()) {
+            builder.header(QueueHttpHeaders.QUEUE_STATE, QueueHttpHeaders.STALE);
+        }
+        return builder.body(result.response());
     }
 
     @PostMapping("/payment/callback")
@@ -47,6 +54,7 @@ public class QueueController {
         String result = queueService.handlePaymentCallback(request.userId(), request.activeToken(), status);
         return switch (result) {
             case "REMOVED", "REFRESHED" -> ResponseEntity.ok(new QueuePaymentCallbackResponse(result));
+            case "DEFERRED" -> ResponseEntity.accepted().body(new QueuePaymentCallbackResponse(result));
             case "NOT_FOUND" -> ResponseEntity.status(404).body(new QueuePaymentCallbackResponse(result));
             case "MISMATCH", "NOT_ACTIVE" -> ResponseEntity.status(409).body(new QueuePaymentCallbackResponse(result));
             case "INVALID_ACTION" -> ResponseEntity.badRequest().body(new QueuePaymentCallbackResponse(result));

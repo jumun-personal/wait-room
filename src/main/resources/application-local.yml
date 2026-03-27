@@ -1,0 +1,3 @@
+admission:
+  max-inflight: 10000
+  max-waiting-queue: 200000

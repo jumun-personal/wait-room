@@ -21,10 +21,17 @@ public final class QueueRedisKeys {
     /** STRING — 스케줄러 분산 락 */
     public static final String CLEANUP_LOCK = "q:waitroom:lock:cleanup";
 
+    /** STRING — 승격 스케줄러 분산 락 */
+    public static final String PROMOTION_LOCK = "q:waitroom:lock:promotion";
+
     /** STRING — 동적 설정 (max active tokens) */
     public static final String MAX_ACTIVE_TOKENS = "q:waitroom:max-active-tokens";
 
     public static String activeTokenKey(String userId) {
         return ACTIVE_TOKEN_PREFIX + userId;
+    }
+
+    public static String activeTokenPrefix() {
+        return ACTIVE_TOKEN_PREFIX;
     }
 }

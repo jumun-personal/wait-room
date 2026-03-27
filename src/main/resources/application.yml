@@ -47,9 +47,30 @@ queue:
   active-ttl-seconds: 600
   cleanup-interval-ms: 5000
   cleanup-lock-ttl-ms: 3000
-  estimated-processing-seconds: 3
   max-poll-interval-seconds: 30
   metrics-interval-ms: 1000
+  resilience:
+    request:
+      retry-max-attempts: 3
+      retry-initial-backoff-ms: 200
+      retry-max-backoff-ms: 500
+      retry-jitter-factor: 0.5
+      circuit-breaker:
+        sliding-window-size: 50
+        minimum-number-of-calls: 50
+        failure-rate-threshold: 50
+        open-state-duration-ms: 5000
+        half-open-permitted-calls: 5
+    scheduler:
+      retry-max-attempts: 3
+      retry-initial-backoff-ms: 200
+      retry-max-backoff-ms: 500
+      retry-jitter-factor: 0.5
+    callback:
+      retry-max-attempts: 3
+      retry-initial-backoff-ms: 200
+      retry-max-backoff-ms: 500
+      retry-jitter-factor: 0.5
 
 admission:
   enabled: true
@@ -57,8 +78,3 @@ admission:
   max-waiting-queue: 2000000 #20000
   acquire-timeout-ms: 5
   retry-after-seconds: 1
-
-diagnostics:
-  pinning:
-    enabled: false
-    simulated-block-ms: 200

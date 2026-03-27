@@ -1,6 +1,7 @@
 package com.jumunhasyeo.ratelimiter.queue.scheduler;
 
 import com.jumunhasyeo.ratelimiter.queue.redis.QueueRedisKeys;
+import com.jumunhasyeo.ratelimiter.queue.resilience.QueueRedisExceptionClassifier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import java.util.UUID;
 public class RedisSchedulerLock {
 
     private final StringRedisTemplate redisTemplate;
+    private final QueueRedisExceptionClassifier exceptionClassifier;
 
     private static final String INSTANCE_ID = UUID.randomUUID().toString();
 
@@ -23,8 +25,12 @@ public class RedisSchedulerLock {
      * @return 락 획득 성공 여부
      */
     public boolean tryLock(String lockKey, Duration ttl) {
-        Boolean acquired = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, INSTANCE_ID, ttl);
-        return Boolean.TRUE.equals(acquired);
+        try {
+            Boolean acquired = redisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, INSTANCE_ID, ttl);
+            return Boolean.TRUE.equals(acquired);
+        } catch (RuntimeException e) {
+            throw exceptionClassifier.wrapIfTransient("scheduler_lock", e);
+        }
     }
 }

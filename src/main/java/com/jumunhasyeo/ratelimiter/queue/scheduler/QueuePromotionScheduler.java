@@ -1,6 +1,7 @@
 package com.jumunhasyeo.ratelimiter.queue.scheduler;
 
 import com.jumunhasyeo.ratelimiter.queue.config.QueueProperties;
+import com.jumunhasyeo.ratelimiter.queue.config.QueueRuntimeConfig;
 import com.jumunhasyeo.ratelimiter.queue.redis.QueueRedisKeys;
 import com.jumunhasyeo.ratelimiter.queue.repository.WaitingQueueRedisRepository;
 import com.jumunhasyeo.ratelimiter.queue.resilience.QueueResilienceExecutor;
@@ -17,48 +18,43 @@ import java.time.Duration;
 @Component
 @EnableScheduling
 @RequiredArgsConstructor
-public class QueueCleanupScheduler {
+public class QueuePromotionScheduler {
 
-    private static final int CLEANUP_BATCH_SIZE = 100;
+    private static final int PROMOTION_SCAN_LIMIT = 100;
     private static final int STALE_THRESHOLD_MULTIPLIER = 3;
+    private static final long PROMOTION_INTERVAL_MS = 1000L;
 
     private final WaitingQueueRedisRepository repository;
     private final QueueProperties properties;
+    private final QueueRuntimeConfig runtimeConfig;
     private final RedisSchedulerLock schedulerLock;
     private final QueueResilienceExecutor resilienceExecutor;
 
-    @Scheduled(fixedDelayString = "${queue.cleanup-interval-ms}")
-    public void cleanup() {
-        Duration lockTtl = Duration.ofMillis(properties.cleanupLockTtlMs());
+    @Scheduled(fixedDelay = PROMOTION_INTERVAL_MS)
+    public void promote() {
+        Duration lockTtl = Duration.ofMillis(Math.min(properties.cleanupLockTtlMs(), PROMOTION_INTERVAL_MS));
         try {
             boolean locked = resilienceExecutor.executeScheduler(() ->
-                    schedulerLock.tryLock(QueueRedisKeys.CLEANUP_LOCK, lockTtl)
+                    schedulerLock.tryLock(QueueRedisKeys.PROMOTION_LOCK, lockTtl)
             );
             if (!locked) {
                 return;
             }
 
-            cleanupStalePolling();
-            cleanupExpiredActive();
+            int stalePollSeconds = properties.maxPollIntervalSeconds() * STALE_THRESHOLD_MULTIPLIER;
+            long promoted = resilienceExecutor.executeScheduler(() ->
+                    repository.promoteWaitingUsers(
+                            runtimeConfig.maxActiveTokens(),
+                            properties.activeTtlSeconds(),
+                            stalePollSeconds,
+                            PROMOTION_SCAN_LIMIT
+                    )
+            );
+            if (promoted > 0) {
+                log.info("대기열에서 활성 세트로 {}명 승격", promoted);
+            }
         } catch (QueueRedisTransientException e) {
-            log.warn("대기열 정리 중 Redis 일시 장애가 발생했습니다", e);
-        }
-    }
-
-    private void cleanupStalePolling() {
-        int stalePollSeconds = properties.maxPollIntervalSeconds() * STALE_THRESHOLD_MULTIPLIER;
-        long removed = resilienceExecutor.executeScheduler(() ->
-                repository.cleanupStale(stalePollSeconds, CLEANUP_BATCH_SIZE)
-        );
-        if (removed > 0) {
-            log.info("대기열에서 stale 사용자 {}명 제거", removed);
-        }
-    }
-
-    private void cleanupExpiredActive() {
-        long removed = resilienceExecutor.executeScheduler(repository::cleanupExpiredActive);
-        if (removed > 0) {
-            log.info("활성 세트에서 만료된 사용자 {}명 제거", removed);
+            log.warn("대기열 승격 중 Redis 일시 장애가 발생했습니다", e);
         }
     }
 }

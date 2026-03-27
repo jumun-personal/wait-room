@@ -8,7 +8,6 @@ public record QueueProperties(
         int activeTtlSeconds,
         long cleanupIntervalMs,
         long cleanupLockTtlMs,
-        int estimatedProcessingSeconds,
         int maxPollIntervalSeconds
 ) {
 }

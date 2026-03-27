@@ -43,7 +43,6 @@ Client -> QueueController -> QueueService -> WaitingQueueRedisRepository -> Redi
     - `allowed` : 즉시 입장 여부
     - `activeToken` : 즉시 입장 시 발급되는 토큰
     - `rank` : 대기 순번 (1-based)
-    - `estimatedWaitSeconds` : 대기 시간 추정치
     - `pollIntervalSeconds` : 추천 폴링 간격(초)
 - 상태 코드
   - `200 OK` : 즉시 입장
@@ -57,7 +56,6 @@ Client -> QueueController -> QueueService -> WaitingQueueRedisRepository -> Redi
     - `allowed` : 입장 허용 여부
     - `activeToken` : 입장 허용 시 발급되는 토큰
     - `rank` : 대기 순번 (1-based)
-    - `estimatedWaitSeconds` : 대기 시간 추정치
     - `pollIntervalSeconds` : 추천 폴링 간격(초)
 
 ### 4.3 예외
@@ -229,26 +227,14 @@ Poll
 - stale 기준: `maxPollIntervalSeconds * 3` (기본 90초)
 - `queue.active-ttl-seconds`: 600 (active TTL 10분)
 
-## 9. 대기 시간 추정 로직
-`QueueServiceImpl.estimateWaitSeconds`에서 대기 시간을 계산합니다.
+## 9. 폴링 간격 추천 로직
+현재 구현은 예상 대기시간을 계산하지 않고, 응답 순번만 보고 폴링 간격을 정합니다.
 
-- 처리량(초당) = `maxActiveTokens / estimatedProcessingSeconds`
-- 대기 시간(초) = `rank / 처리량`
-- 최소 1초 보장
+- rank 100 이하: 5초
+- rank 1000 이하: 10초
+- rank 1000 초과: 30초
 
-주의
-- rank는 1-based로 응답됩니다.
-- 추정치는 평균 처리량 기반의 간단 추정치입니다.
-
-### 9.1 폴링 간격 추천 로직
-`estimatedWaitSeconds` 기반으로 클라이언트 폴링 간격을 조정합니다.
-
-- 10분 이상: 30초
-- 5분 이상: 20초
-- 1분 이상: 10초
-- 1분 미만: 5초
-
-10분 이상 구간의 최대값은 `queue.max-poll-interval-seconds`로 설정됩니다.
+1000 초과 구간의 최대값은 `queue.max-poll-interval-seconds`로 설정됩니다.
 
 ## 10. 설정값 요약 (application.yml)
 아래는 기본 운영 프로파일 기준입니다.
@@ -258,7 +244,6 @@ Poll
 - `queue.max-poll-interval-seconds`: 30
 - `queue.cleanup-interval-ms`: 5000
 - `queue.cleanup-lock-ttl-ms`: 3000
-- `queue.estimated-processing-seconds`: 3
 - `queue.metrics-interval-ms`: 1000
 
 로컬 프로파일(`application-local.yml`)에서는 `admission.*` 값이 테스트 용도로 상향됩니다.
@@ -281,12 +266,11 @@ Poll
 ## 11. 테스트 요약
 `QueueServiceTest`는 다음을 보장합니다.
 
-- active 여유가 있으면 즉시 입장
 - 이미 active면 allowed 응답
 - 대기열 등록 시 rank 반환
-- 대기 시간 추정 계산
+- rank 기준 폴링 간격 계산
 - poll 시 입장 허용/대기 순위 반환
-- 대기열 미존재 예외
+- Redis 일시 장애 시 마지막 순번 기반 stale 응답 복원
 
 `WaitingQueueRedisRepositoryTest`는 Lua 스크립트 동작을 통합적으로 검증합니다.
 
@@ -298,7 +282,6 @@ Poll
 - `max-poll-interval-seconds` : 권장 폴링 최대 간격 (stale 기준은 이 값의 3배)
 - `cleanup-interval-ms` : 정리 주기
 - `cleanup-lock-ttl-ms` : 락 유지 시간
-- `estimated-processing-seconds` : 대기 시간 추정에 사용되는 평균 처리 시간
 
 참고
 - `approve.*` 설정은 현행 코드에서 사용되지 않으므로 정리 대상입니다.
