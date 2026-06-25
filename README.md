@@ -6,47 +6,6 @@
   - Redis 장애 시에는 Redis호출을 차단하고 Gateway rate limiter로 주문 서버 보호
 - 성과: 대기자 5,000명, 입장 처리 75RPS에서 순번 조회 p99 22.2ms로 확인 (JVM Warm-up 진행)
 
-## 시스템 아키텍처
-
-### 대기열 내부 동작
-
-!image.png
-
-- POST /api/queue/enter는 대기열 등록을 담당합니다.
-- GET /api/queue/poll은 순번조회 질의와 하트비트를 담당합니다.
-- Scheduler는 1초마다 waiting 사용자를 active로 승격합니다.
-
-즉 enter와 poll은 상태를 읽고 기록하는 역할에 집중하고, 실제 waiting -> active 이동은 서버 스케줄러가 담당합니다.
-
-### 대기열 서버 구성도
-
-<img width="1910" height="528" alt="image" src="https://github.com/user-attachments/assets/1defdc5b-4f4b-431c-ba5d-728bf2a14796" />
-
-
-- 대기열은 Gateway와 Order서버 사이에 위치합니다
-- Redis가 잠깐 불안정할 때는 retry와 순번 조회의 경우 마지막 순번을 반환합니다.
-- 장애가 길어지면 gateway가 queue를 우회하도록 fail-open 신호를 보냅니다.
-
-### 레디스 데이터 모델
-
-|  | 자료구조 | 용도 | 상세 |
-| --- | --- | --- | --- |
-|  | ZSET | 대기열 | member=userId, score=epochMillis (대기 시각) |
-|  | ZSET | 활성 사용자 집합 | member=userId, score=만료 시각(expireAtMillis) |
-|  | ZSET | 오래된 폴링 user 찾기 | member=userId, score=마지막 poll 시각(epochMillis) |
-|  | STRING +TTL | token 저장 | 후속 요청에서 userId + token 일치 여부 검증 |
-
-### 레디스 장애시 대응 전략
-
-<img width="1928" height="908" alt="image" src="https://github.com/user-attachments/assets/5c7c4faa-ece9-4f45-bb20-73eaa54fc3fc" />
-
-
-- 짧은 장애는 retry로 흡수합니다.
-- retry 후에도 실패하면 일시 장애로 처리합니다.
-- 실패가 더 누적되면 circuit breaker를 열고, queue 서비스는 503 + BYPASS(영구 장애) 신호만 보냅니다.
-- 실제 fail-open 판단과 우회 수행은 Spring Cloud Gateway가 담당합니다.
-
----
 
 ## 성능 테스트 상세 결과
 
